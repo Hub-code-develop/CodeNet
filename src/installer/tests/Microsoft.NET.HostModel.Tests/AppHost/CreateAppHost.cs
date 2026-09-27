@@ -445,8 +445,9 @@ namespace Microsoft.NET.HostModel.AppHost.Tests
                 string[] hosts = [Binaries.AppHost.FilePath, Binaries.SingleFileHost.FilePath];
                 foreach (string host in hosts)
                 {
-                    // Hosts should be compatible with CET shadow stack by default
-                    Assert.True(Binaries.CetCompat.IsMarkedCompatible(host));
+                    // CodeNet ships hosts that are not marked CET-compatible so that they start even on
+                    // Windows builds that enforce shadow stacks incorrectly.
+                    Assert.False(Binaries.CetCompat.IsMarkedCompatible(host));
                     string source = Path.Combine(artifact.Location, Path.GetFileName(host));
                     File.Copy(host, source);
 
@@ -459,14 +460,14 @@ namespace Microsoft.NET.HostModel.AppHost.Tests
                        disableCetCompat: true);
                     Assert.False(Binaries.CetCompat.IsMarkedCompatible(cetDisabled));
 
-                    // Validate compatibility is not changed (remains enabled)
-                    string cetEnabled = Path.Combine(artifact.Location, $"{Path.GetFileName(host)}_cetEnabled.exe");
+                    // Validate compatibility is not changed (remains unmarked)
+                    string cetUnchanged = Path.Combine(artifact.Location, $"{Path.GetFileName(host)}_cetUnchanged.exe");
                     HostWriter.CreateAppHost(
                        source,
-                       cetEnabled,
+                       cetUnchanged,
                        "app",
                        disableCetCompat: false);
-                    Assert.True(Binaries.CetCompat.IsMarkedCompatible(cetEnabled));
+                    Assert.False(Binaries.CetCompat.IsMarkedCompatible(cetUnchanged));
                 }
             }
         }

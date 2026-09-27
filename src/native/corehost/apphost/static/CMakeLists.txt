@@ -109,10 +109,8 @@ if(CLR_CMAKE_TARGET_WIN32)
     # Disable manifest generation into the file .exe on Windows
     add_linker_flag("/MANIFEST:NO")
 
-    # Enable CET-compatibility
-    if (CLR_CMAKE_HOST_ARCH_AMD64)
-        add_linker_flag("/CETCOMPAT")
-    endif()
+    # CodeNet deliberately omits /CETCOMPAT here: see eng/native/configurecompiler.cmake for why the
+    # CET-compatibility marker is not emitted on Windows.
 
     # Incremental linking results in the linker inserting extra padding and routing function calls via thunks that can break the
     # invariants (e.g. size of region between Jit_PatchedCodeLast-Jit_PatchCodeStart needs to fit in a page).

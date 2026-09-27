@@ -72,10 +72,11 @@ import { asset, sdkDownloads, runtimeDownloads, RELEASES, RELEASE_TAG, WORKFLOW 
         </article>
         <article class="fix-card">
           <div class="fix-index">WINDOWS</div>
-          <h3>请用最新补丁</h3>
+          <h3>无需最新补丁</h3>
           <p>
-            这是<strong>原版 .NET</strong> 的问题：它在 Windows 上对补丁版本敏感，补丁过旧时进程会在创建 CoreCLR 阶段因
-            CET（控制流强制技术）直接失败，应用起不来。所以 Windows 务必使用最新补丁。
+            <strong>原版 .NET</strong> 在 Windows 上对补丁版本敏感：补丁过旧时进程会在创建 CoreCLR 阶段因
+            CET（控制流强制技术）直接失败，应用起不来。CodeNet 的 Windows 运行时在链接期就不写入 CET 兼容标记，
+            因此不依赖系统补丁版本，补丁过旧也能正常启动。
           </p>
         </article>
       </div>

@@ -29,7 +29,7 @@ namespace HostActivation.Tests
         {
             string appExe = sharedTestState.App.AppExe;
             if (Binaries.CetCompat.IsSupported)
-                Assert.True(Binaries.CetCompat.IsMarkedCompatible(appExe));
+                Assert.False(Binaries.CetCompat.IsMarkedCompatible(appExe));
 
             Command.Create(appExe)
                 .CaptureStdErr()

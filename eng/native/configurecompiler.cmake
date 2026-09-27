@@ -933,14 +933,19 @@ if (MSVC)
   # Added using variables instead of add_compile_options to let individual projects override it
   add_compile_options($<$<AND:$<COMPILE_LANGUAGE:C,CXX>,$<BOOL:$<TARGET_PROPERTY:CLR_CONTROL_FLOW_GUARD>>>:/guard:cf>)
 
-  # Enable EH-continuation table and CET-compatibility for native components for amd64 builds except for components of the Mono
+  # Enable the EH-continuation table for native components for amd64 builds except for components of the Mono
   # runtime. Added some switches using variables instead of add_compile_options to let individual projects override it.
+  #
+  # CodeNet does not emit /CETCOMPAT. That flag marks the PE image as CET-compatible, which makes Windows enable
+  # hardware shadow stacks for the process, and then any module in that process that is not shadow-stack clean
+  # terminates it outright. Unpatched or older Windows builds get this wrong, and the vanilla runtime then fails
+  # before it can even initialize CoreCLR. CodeNet is meant to run in every environment, so its Windows binaries
+  # stay CET-unmarked and simply run without shadow-stack enforcement.
   if (CLR_CMAKE_HOST_ARCH_AMD64 AND NOT CLR_CMAKE_RUNTIME_MONO)
     set_property(GLOBAL PROPERTY CLR_EH_CONTINUATION ON)
 
     add_compile_options($<$<AND:$<COMPILE_LANGUAGE:C,CXX,ASM_MASM>,$<BOOL:$<TARGET_PROPERTY:CLR_EH_CONTINUATION>>>:/guard:ehcont>)
     add_link_options($<$<BOOL:$<TARGET_PROPERTY:CLR_EH_CONTINUATION>>:/guard:ehcont>)
-    set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /CETCOMPAT")
   endif (CLR_CMAKE_HOST_ARCH_AMD64 AND NOT CLR_CMAKE_RUNTIME_MONO)
 
   # Statically linked CRT (libcmt[d].lib, libvcruntime[d].lib and libucrt[d].lib) by default. This is done to avoid
