@@ -28,33 +28,39 @@ export const sdkDownloads = [
 ]
 
 // 平铺的 CoreCLR + 共享框架运行时包，需并入既有 SDK 使用。
+// status: 'released' 表示 Release 上已有资产；'building' 表示尚未发布（CI 构建中），
+// 构建成功后把对应条目的 status 改成 'released' 即可显示直链。
 export const runtimeDownloads = [
   {
     id: 'linux-x64',
     platform: 'Linux',
     arch: 'x64',
     asset: 'dotnet-codenet-linux-x64.tar.gz',
-    note: 'CoreCLR + 共享框架运行时包（平铺布局，需并入既有 SDK 使用）。'
+    note: 'CoreCLR + 共享框架运行时包（平铺布局，需并入既有 SDK 使用）。',
+    status: 'released'
   },
   {
     id: 'linux-arm64',
     platform: 'Linux',
     arch: 'arm64',
     asset: 'dotnet-codenet-linux-arm64.tar.gz',
-    note: '同 Linux x64，架构为 arm64。'
+    note: '同 Linux x64，架构为 arm64。',
+    status: 'released'
   },
   {
     id: 'win-x64',
     platform: 'Windows',
     arch: 'x64',
     asset: 'dotnet-codenet-win-x64.zip',
-    note: '同上（x64，zip 打包）。'
+    note: '同上（x64，zip 打包）。必须使用当前最新补丁，旧补丁在创建 CoreCLR 时会直接失败。',
+    status: 'building'
   },
   {
     id: 'win-arm64',
     platform: 'Windows',
     arch: 'arm64',
     asset: 'dotnet-codenet-win-arm64.zip',
-    note: '同上（arm64，zip 打包）。'
+    note: '同上（arm64，zip 打包）。必须使用当前最新补丁，旧补丁在创建 CoreCLR 时会直接失败。',
+    status: 'building'
   }
 ]

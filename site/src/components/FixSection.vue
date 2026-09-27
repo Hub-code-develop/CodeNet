@@ -31,7 +31,8 @@ const walls = [
         </div>
       </div>
       <p class="lede" style="margin-bottom: 34px">
-        把 macOS 兼容性修复做进运行时本身，而不是在每个应用的发布流程里打补丁。
+        Code.NET 的定位是一个跨平台的运行时：在 macOS、Linux、Windows 上都要能用、且任何情况下都能跑起来。
+        因此平台相关的崩溃修复做进运行时本身，而不是留在应用层挨个绕开。
       </p>
 
       <div class="grid-fix">

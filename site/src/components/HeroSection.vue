@@ -4,7 +4,7 @@ import { RELEASE_TAG, REPO, RELEASES } from '../data/downloads.js'
 const facts = [
   { k: '上游', v: 'dotnet/runtime' },
   { k: '发布标签', v: RELEASE_TAG },
-  { k: '目标平台', v: 'macOS / Linux / Windows' },
+  { k: '目标平台', v: 'macOS · Linux · Windows' },
   { k: '许可证', v: 'MIT' }
 ]
 </script>
@@ -14,11 +14,11 @@ const facts = [
     <div>
       <div class="label">Open-code-studio · dotnet runtime fork</div>
       <h1 class="hero-title">CODE<span class="tld">.NET</span></h1>
-      <p class="hero-claim">让 .NET 在新版 macOS 上原厂即可用</p>
+      <p class="hero-claim">跨平台 .NET 运行时，任何情况下都能工作</p>
       <p class="lede">
-        Code.NET 是 dotnet/runtime 的定制分支，针对新版 macOS（含 macOS 27 及后续版本）上
-        .NET 运行时崩溃的问题做了修复。核心思路是把修复做进 SDK 本身：用 Code.NET SDK
-        打包出的应用出厂即带修复运行时，发布后不再需要手工注入 dylib 或重签名。
+        Code.NET 是 dotnet/runtime 的定制分支，目标是让 .NET 在 macOS、Linux、Windows 上都可靠可用：
+        把平台相关的运行时崩溃修复做进运行时本身，而不是留给每个应用在发布流程里逐个打补丁。
+        用 Code.NET 打包出的应用出厂即带修复，无需手工注入 dylib 或重签名。
       </p>
       <div class="hero-actions">
         <a class="btn btn-solid" href="#download">下载 <span aria-hidden="true">↓</span></a>

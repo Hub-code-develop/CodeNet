@@ -1,8 +1,8 @@
 <script setup>
 const stats = [
   { value: '10.0.400', label: '当前发布标签' },
-  { value: '2', label: 'macOS 崩溃修复' },
-  { value: '6', label: '平台资产' },
+  { value: '3', label: '支持平台' },
+  { value: '6', label: '目标架构' },
   { value: 'MIT', label: '继承上游许可' }
 ]
 </script>

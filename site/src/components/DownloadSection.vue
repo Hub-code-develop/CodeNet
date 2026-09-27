@@ -1,5 +1,5 @@
 <script setup>
-import { asset, sdkDownloads, runtimeDownloads, RELEASES, RELEASE_TAG } from '../data/downloads.js'
+import { asset, sdkDownloads, runtimeDownloads, RELEASES, RELEASE_TAG, WORKFLOW } from '../data/downloads.js'
 </script>
 
 <template>
@@ -39,13 +39,41 @@ import { asset, sdkDownloads, runtimeDownloads, RELEASES, RELEASE_TAG } from '..
         <article v-for="item in runtimeDownloads" :key="item.id" class="card">
           <div class="card-top">
             <span class="card-platform">{{ item.platform }} · {{ item.arch }}</span>
-            <span class="tag tag-runtime">Runtime</span>
+            <span class="tag tag-runtime">{{ item.status === 'building' ? '构建中' : 'Runtime' }}</span>
           </div>
           <div class="card-asset">{{ item.asset }}</div>
           <p class="card-note">{{ item.note }}</p>
-          <a class="card-link" :href="asset(item.asset)">
+          <a
+            v-if="item.status === 'building'"
+            class="card-link"
+            :href="WORKFLOW"
+            target="_blank"
+            rel="noreferrer"
+          >
+            CI 构建状态 <span aria-hidden="true">↗</span>
+          </a>
+          <a v-else class="card-link" :href="asset(item.asset)">
             下载 <span aria-hidden="true">↓</span>
           </a>
+        </article>
+      </div>
+
+      <div class="group-title" style="margin-top: 44px">平台要求</div>
+      <div class="grid-fix">
+        <article class="fix-card">
+          <div class="fix-index">MACOS</div>
+          <h3>完整 SDK 布局</h3>
+          <p>解压后即得到 <code>dotnet11x64/</code> 目录，设置 <code>DOTNET_ROOT</code> 后可直接用于自包含发布，无需并入其它 SDK。</p>
+        </article>
+        <article class="fix-card">
+          <div class="fix-index">LINUX</div>
+          <h3>并入既有 SDK</h3>
+          <p>Runtime 包为平铺布局，需与已有 SDK 的 <code>shared/Microsoft.NETCore.App/</code> 目录合并后使用。</p>
+        </article>
+        <article class="fix-card">
+          <div class="fix-index">WINDOWS</div>
+          <h3>必须使用最新补丁</h3>
+          <p>Windows 对补丁版本敏感：运行时若不是当前最新补丁，进程会在创建 CoreCLR 阶段直接失败，应用无法启动。</p>
         </article>
       </div>
 
