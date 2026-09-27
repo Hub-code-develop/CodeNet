@@ -72,8 +72,11 @@ import { asset, sdkDownloads, runtimeDownloads, RELEASES, RELEASE_TAG, WORKFLOW 
         </article>
         <article class="fix-card">
           <div class="fix-index">WINDOWS</div>
-          <h3>必须使用最新补丁</h3>
-          <p>Windows 对补丁版本敏感：运行时若不是当前最新补丁，进程会在创建 CoreCLR 阶段直接失败，应用无法启动。</p>
+          <h3>请用最新补丁</h3>
+          <p>
+            这是<strong>原版 .NET</strong> 的问题：它在 Windows 上对补丁版本敏感，补丁过旧时进程会在创建 CoreCLR 阶段因
+            CET（控制流强制技术）直接失败，应用起不来。所以 Windows 务必使用最新补丁。
+          </p>
         </article>
       </div>
 

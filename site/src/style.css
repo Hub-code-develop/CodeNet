@@ -469,6 +469,11 @@ kbd {
   word-break: break-all;
 }
 
+.fix-card strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
 /* ---------- 代码块 ---------- */
 
 .code {
