@@ -1109,9 +1109,9 @@ int fx_muxer_t::handle_cli(
 
         trace::error(
             _X("The command could not be loaded, possibly because:\n")
-            _X("  * You intended to execute a .NET application:\n")
+            _X("  * You intended to execute a CodeNet application:\n")
             _X("      The application '%s' does not exist or is not a managed .dll or .exe.\n")
-            _X("  * You intended to execute a .NET SDK command:"),
+            _X("  * You intended to execute a CodeNet SDK command:"),
             app_candidate.c_str());
         resolver.print_resolution_error(host_info.dotnet_root, _X("      "));
 
@@ -1134,7 +1134,7 @@ int fx_muxer_t::handle_cli(
     new_argv.push_back(sdk_dotnet.c_str());
     new_argv.insert(new_argv.end(), argv + 1, argv + argc);
 
-    trace::verbose(_X("Using .NET SDK dll=[%s]"), sdk_dotnet.c_str());
+    trace::verbose(_X("Using CodeNet SDK dll=[%s]"), sdk_dotnet.c_str());
 
     int new_argoff;
     pal::string_t sdk_app_candidate;

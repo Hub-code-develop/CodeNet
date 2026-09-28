@@ -39,7 +39,7 @@ namespace
         constexpr int EMBED_APP_RELATIVE_DOTNET_MAX_SIZE = EMBED_SIZE - 3; // -2 for search location + null, -1 for null terminator
         if (binding.size() > EMBED_APP_RELATIVE_DOTNET_MAX_SIZE)
         {
-            trace::error(_X("The app-relative .NET path is longer than the max allowed length (%d)"), EMBED_APP_RELATIVE_DOTNET_MAX_SIZE);
+            trace::error(_X("The app-relative CodeNet path is longer than the max allowed length (%d)"), EMBED_APP_RELATIVE_DOTNET_MAX_SIZE);
             return false;
         }
 
@@ -55,18 +55,18 @@ namespace
                 && binding.compare(0, hi_len, &hi_part[0]) == 0
                 && binding.compare(hi_len, lo_len, &lo_part[0]) == 0))
         {
-            trace::error(_X("The app-relative .NET path is not embedded."));
+            trace::error(_X("The app-relative CodeNet path is not embedded."));
             return false;
         }
 
         pal::string_t app_relative_dotnet;
         if (!pal::clr_palstring(binding.c_str(), &app_relative_dotnet))
         {
-            trace::error(_X("The app-relative .NET path could not be retrieved from the executable image."));
+            trace::error(_X("The app-relative CodeNet path could not be retrieved from the executable image."));
             return false;
         }
 
-        trace::info(_X("Embedded app-relative .NET path: '%s'"), app_relative_dotnet.c_str());
+        trace::info(_X("Embedded app-relative CodeNet path: '%s'"), app_relative_dotnet.c_str());
         out_app_relative_dotnet = std::move(app_relative_dotnet);
         return true;
     }

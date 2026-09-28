@@ -151,12 +151,12 @@ void sdk_resolver::print_resolution_error(const pal::string_t& dotnet_root, cons
     }
 
     bool sdk_exists = false;
-    const pal::char_t *no_sdk_message = _X("No .NET SDKs were found.");
+    const pal::char_t *no_sdk_message = _X("No CodeNet SDKs were found.");
     if (!requested_version.is_empty())
     {
         pal::string_t requested = requested_version.as_str();
         trace::error(
-            _X("%sA compatible .NET SDK was not found.\n")
+            _X("%sA compatible CodeNet SDK was not found.\n")
             _X("\n")
             _X("Requested SDK version: %s"),
             main_error_prefix,
@@ -184,11 +184,11 @@ void sdk_resolver::print_resolution_error(const pal::string_t& dotnet_root, cons
         trace::error(_X(""));
         if (has_global_file)
         {
-            trace::error(_X("Install the [%s] .NET SDK or update [%s] to match an installed SDK."), requested.c_str(), global_json.path.c_str());
+            trace::error(_X("Install the [%s] CodeNet SDK or update [%s] to match an installed SDK."), requested.c_str(), global_json.path.c_str());
         }
         else
         {
-            trace::error(_X("Install the [%s] .NET SDK or create a global.json file matching an installed SDK."), requested.c_str());
+            trace::error(_X("Install the [%s] CodeNet SDK or create a global.json file matching an installed SDK."), requested.c_str());
         }
     }
     else
@@ -204,7 +204,7 @@ void sdk_resolver::print_resolution_error(const pal::string_t& dotnet_root, cons
     {
         trace::error(
             _X("\n")
-            _X("Download a .NET SDK:\n")
+            _X("Download a CodeNet SDK:\n")
             DOTNET_CORE_DOWNLOAD_URL);
     }
 

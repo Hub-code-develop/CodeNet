@@ -170,7 +170,7 @@ namespace AppHost.Bundle.Tests
                     .DotNetRoot(dotnet.BinPath)
                     .Execute()
                     .Should().Fail()
-                    .And.HaveStdErrContaining("You must install or update .NET to run this application.")
+                    .And.HaveStdErrContaining("You must install or update CodeNet to run this application.")
                     .And.HaveStdErrContaining("App host version:")
                     .And.HaveStdErrContaining("apphost_version=");
             }

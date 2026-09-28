@@ -18,10 +18,10 @@
 #define DOTNET_SDK_NOT_FOUND_URL _X("https://aka.ms/dotnet/sdk-not-found")
 
 // This message is defined here for consistency between errors on the command line and GUI (Windows apphost).
-#define INSTALL_OR_UPDATE_NET_ERROR_MESSAGE _X("You must install or update .NET to run this application.")
+#define INSTALL_OR_UPDATE_NET_ERROR_MESSAGE _X("You must install or update CodeNet to run this application.")
 
-#define INSTALL_NET_ERROR_MESSAGE _X("You must install .NET to run this application.")
-#define INSTALL_NET_DESKTOP_ERROR_MESSAGE _X("You must install .NET Desktop Runtime to run this application.")
+#define INSTALL_NET_ERROR_MESSAGE _X("You must install CodeNet to run this application.")
+#define INSTALL_NET_DESKTOP_ERROR_MESSAGE _X("You must install CodeNet Desktop Runtime to run this application.")
 
 #define DOC_LINK_INTRO _X("Learn more:")
 
@@ -30,12 +30,12 @@
     _X("App: %s\n")                             \
     _X("Architecture: %s\n")                    \
     _X("App host version: %s\n")                \
-    _X("CodeNet location: %s\n")                   \
+    _X("CodeNet location: %s\n")                \
     _X("\n")                                    \
     DOC_LINK_INTRO _X("\n")                     \
     DOTNET_APP_LAUNCH_FAILED_URL                \
     _X("\n\n")                                  \
-    _X("Download the .NET runtime:\n")          \
+    _X("Download the CodeNet runtime:\n")       \
     _X("%s&apphost_version=%s")
 
 #define DOTNET_ROOT_ENV_VAR _X("DOTNET_ROOT")

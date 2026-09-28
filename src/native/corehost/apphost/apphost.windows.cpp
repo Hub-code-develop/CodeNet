@@ -42,7 +42,7 @@ namespace
         auto eventSource = ::RegisterEventSourceW(nullptr, _X("CodeNet Runtime"));
         const DWORD traceErrorID = 1023; // Matches CoreCLR ERT_UnmanagedFailFast
         pal::string_t message;
-        message.append(_X("Description: A .NET application failed.\n"));
+        message.append(_X("Description: A CodeNet application failed.\n"));
         message.append(_X("Application: ")).append(executable_name).append(_X("\n"));
         message.append(_X("Path: ")).append(executable_path).append(_X("\n"));
         message.append(_X("Message: ")).append(g_buffered_errors).append(_X("\n"));

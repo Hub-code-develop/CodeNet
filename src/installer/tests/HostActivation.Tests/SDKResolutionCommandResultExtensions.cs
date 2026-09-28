@@ -10,16 +10,16 @@ namespace HostActivation.Tests
     {
         public static AndConstraint<CommandResultAssertions> FindAnySdk(this CommandResultAssertions assertion, bool shouldFindAnySdk)
         {
-            string noSdkMessage = "No .NET SDKs were found";
+            string noSdkMessage = "No CodeNet SDKs were found";
             return shouldFindAnySdk
                 ? assertion.NotHaveStdErrContaining(noSdkMessage)
                 : assertion.HaveStdErrContaining(noSdkMessage)
-                    .And.HaveStdErrContaining("Download a .NET SDK:");
+                    .And.HaveStdErrContaining("Download a CodeNet SDK:");
         }
 
         public static AndConstraint<CommandResultAssertions> NotFindCompatibleSdk(this CommandResultAssertions assertion, string globalJsonPath = null, string requestedVersion = null)
         {
-            var constraint = assertion.HaveStdErrContaining("compatible .NET SDK was not found");
+            var constraint = assertion.HaveStdErrContaining("compatible CodeNet SDK was not found");
 
             if (globalJsonPath is not null)
             {
@@ -33,7 +33,7 @@ namespace HostActivation.Tests
 
             if (globalJsonPath is not null && requestedVersion is not null)
             {
-                constraint = constraint.And.HaveStdErrContaining($"Install the [{requestedVersion}] .NET SDK or update [{globalJsonPath}] to match an installed SDK.");
+                constraint = constraint.And.HaveStdErrContaining($"Install the [{requestedVersion}] CodeNet SDK or update [{globalJsonPath}] to match an installed SDK.");
             }
 
             return constraint;

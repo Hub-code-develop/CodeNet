@@ -508,7 +508,7 @@ namespace Microsoft.DotNet.CoreSetup.Test.HostActivation
                 command.WaitForExit()
                     .Should().Fail()
                     .And.HaveStdErrContaining($"Showing error dialog for application: '{Path.GetFileName(appExe)}' - error code: 0x{expectedErrorCode}")
-                    .And.HaveStdErrContaining("You must install or update .NET to run this application.")
+                    .And.HaveStdErrContaining("You must install or update CodeNet to run this application.")
                     .And.HaveStdErrContaining("App host version:")
                     .And.HaveStdErrContaining("apphost_version=");
             }

@@ -354,7 +354,7 @@ void command_line::print_muxer_info(const pal::string_t &dotnet_root, const sdk_
         _X("  ") DOTNET_INFO_URL);
 
     trace::println(_X("\n")
-        _X("Download .NET:\n")
+        _X("Download CodeNet:\n")
         _X("  ") DOTNET_CORE_DOWNLOAD_URL);
 }
 
@@ -365,8 +365,8 @@ void command_line::print_muxer_usage(bool is_sdk_present)
     if (!is_sdk_present)
     {
         trace::println();
-        trace::println(_X("Usage: dotnet [host-options] [path-to-application]"));
-        trace::println(_X("Usage: dotnet [host-commands]"));
+        trace::println(_X("Usage: codenet [host-options] [path-to-application]"));
+        trace::println(_X("Usage: codenet [host-commands]"));
         trace::println();
         trace::println(_X("path-to-application:"));
         trace::println(_X("  The path to an application .dll file to execute."));
@@ -385,7 +385,7 @@ void command_line::print_muxer_usage(bool is_sdk_present)
     if (!is_sdk_present)
     {
         trace::println(_X("  -h|--help                        Displays this help."));
-        trace::println(_X("  --info                           Display .NET information."));
+        trace::println(_X("  --info                           Display CodeNet information."));
     }
 
     trace::println(_X("  --list-runtimes [--arch <arch>]  Display the installed runtimes matching the host or specified architecture. Example architectures: arm64, x64, x86."));

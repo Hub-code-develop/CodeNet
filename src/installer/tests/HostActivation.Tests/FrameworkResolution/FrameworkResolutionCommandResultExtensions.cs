@@ -48,7 +48,7 @@ namespace Microsoft.DotNet.CoreSetup.Test.HostActivation.FrameworkResolution
 
         public static AndConstraint<CommandResultAssertions> DidNotFindCompatibleFrameworkVersion(this CommandResultAssertions assertion, string frameworkName, string requestedVersion)
         {
-            var constraint = assertion.HaveStdErrContaining("You must install or update .NET to run this application.");
+            var constraint = assertion.HaveStdErrContaining("You must install or update CodeNet to run this application.");
             if (frameworkName is not null)
             {
                 constraint = constraint.And.HaveStdErrContaining($"Framework: '{frameworkName}', {(requestedVersion is null ? "" : $"version '{requestedVersion}'")}");
