@@ -302,9 +302,11 @@ jobs:
       - name: Verify build output
         shell: pwsh
         run: |
-          $coreclrDir = "artifacts\bin\coreclr\win.${{ matrix.arch }}.Release"
+          # 目录名取自 TargetOS（windows/osx/linux），Windows 上是 `windows.<arch>.Release`，
+          # 不是 `win.`；libraries 目录同理为 `<tfm>-windows-Release-<arch>`。
+          $coreclrDir = "artifacts\bin\coreclr\windows.${{ matrix.arch }}.Release"
           $libsDir = Get-ChildItem -Path "artifacts\bin\runtime" -Directory `
-            -Filter "*-win-Release-${{ matrix.arch }}" -ErrorAction SilentlyContinue |
+            -Filter "*-windows-Release-${{ matrix.arch }}" -ErrorAction SilentlyContinue |
             Select-Object -First 1
 
           if (-not (Test-Path (Join-Path $coreclrDir "coreclr.dll")) -or
