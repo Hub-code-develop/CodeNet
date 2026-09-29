@@ -53,7 +53,7 @@ export const runtimeDownloads = [
     arch: 'x64',
     asset: 'dotnet-codenet-win-x64.zip',
     note: '同上（x64，zip 打包）。CodeNet 运行时不打 CET 兼容标记，不依赖 Windows 补丁版本。',
-    status: 'building'
+    status: 'released'
   },
   {
     id: 'win-arm64',
@@ -61,6 +61,6 @@ export const runtimeDownloads = [
     arch: 'arm64',
     asset: 'dotnet-codenet-win-arm64.zip',
     note: '同上（arm64，zip 打包）。CodeNet 运行时不打 CET 兼容标记，不依赖 Windows 补丁版本。',
-    status: 'building'
+    status: 'released'
   }
 ]
