@@ -76,6 +76,8 @@ jobs:
 
           CORECLR_DIR="artifacts/bin/coreclr/${OS_ID}.${ARCH}.Release"
           LIBS_DIR="$(ls -d artifacts/bin/runtime/*-${OS_ID}-Release-${ARCH} 2>/dev/null | head -n 1)"
+          # 宿主 muxer 的安装目录，按 TargetRid 命名（osx-arm64.Release/corehost）。
+          HOST_DIR="artifacts/bin/${OS_ID}-${ARCH}.Release/corehost"
 
           if [ ! -f "${CORECLR_DIR}/${CORECLR_LIB}" ] || [ ! -f "${CORECLR_DIR}/${HOST_BIN}" ]; then
             echo "::error::CoreCLR output is incomplete: expected ${CORECLR_DIR}/{${CORECLR_LIB},${HOST_BIN}}"
@@ -86,8 +88,15 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f "${HOST_DIR}/codenet" ]; then
+            echo "::error::Host muxer is missing: expected ${HOST_DIR}/codenet"
+            ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
+            exit 1
+          fi
+
           echo "CoreCLR output    : ${CORECLR_DIR}"
           echo "Managed libraries : ${LIBS_DIR:-<not found>}"
+          echo "Host muxer        : ${HOST_DIR}/codenet"
 
           if [ -n "${LIBS_DIR}" ]; then
             DLL_COUNT="$(find "${LIBS_DIR}" -maxdepth 1 -name '*.dll' | wc -l | tr -d ' ')"
@@ -102,6 +111,7 @@ jobs:
           {
             echo "CORECLR_DIR=${CORECLR_DIR}"
             echo "LIBS_DIR=${LIBS_DIR}"
+            echo "HOST_DIR=${HOST_DIR}"
             echo "PACKAGE_DIR=artifacts/package/runtime"
           } >> "$GITHUB_ENV"
 
@@ -116,6 +126,16 @@ jobs:
           if [ -n "${LIBS_DIR}" ] && [ -d "${LIBS_DIR}" ]; then
             cp -R "${LIBS_DIR}/." "${PACKAGE_DIR}/"
           fi
+
+          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
+          # 只取两个可执行文件：同目录下还有 install_with_stripped_symbols
+          # 产出的符号文件（.dwarf/.dbg），不应进运行时包。
+          for host_bin in codenet dotnet; do
+            if [ -f "${HOST_DIR}/${host_bin}" ]; then
+              cp -fp "${HOST_DIR}/${host_bin}" "${PACKAGE_DIR}/"
+            fi
+          done
 
           echo "Packaged $(find "${PACKAGE_DIR}" -type f | wc -l | tr -d ' ') files"
           tar czf "artifacts/package/dotnet-runtime-osx-${{ matrix.arch }}.tar.gz" -C "${PACKAGE_DIR}" .
@@ -220,6 +240,8 @@ jobs:
 
           CORECLR_DIR="artifacts/bin/coreclr/${OS_ID}.${ARCH}.Release"
           LIBS_DIR="$(ls -d artifacts/bin/runtime/*-${OS_ID}-Release-${ARCH} 2>/dev/null | head -n 1)"
+          # 宿主 muxer 的安装目录，按 TargetRid 命名（linux-x64.Release/corehost）。
+          HOST_DIR="artifacts/bin/${OS_ID}-${ARCH}.Release/corehost"
 
           if [ ! -f "${CORECLR_DIR}/${CORECLR_LIB}" ] || [ ! -f "${CORECLR_DIR}/${HOST_BIN}" ]; then
             echo "::error::CoreCLR output is incomplete: expected ${CORECLR_DIR}/{${CORECLR_LIB},${HOST_BIN}}"
@@ -230,8 +252,15 @@ jobs:
             exit 1
           fi
 
+          if [ ! -f "${HOST_DIR}/codenet" ]; then
+            echo "::error::Host muxer is missing: expected ${HOST_DIR}/codenet"
+            ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
+            exit 1
+          fi
+
           echo "CoreCLR output    : ${CORECLR_DIR}"
           echo "Managed libraries : ${LIBS_DIR:-<not found>}"
+          echo "Host muxer        : ${HOST_DIR}/codenet"
 
           if [ -n "${LIBS_DIR}" ]; then
             DLL_COUNT="$(find "${LIBS_DIR}" -maxdepth 1 -name '*.dll' | wc -l | tr -d ' ')"
@@ -246,6 +275,7 @@ jobs:
           {
             echo "CORECLR_DIR=${CORECLR_DIR}"
             echo "LIBS_DIR=${LIBS_DIR}"
+            echo "HOST_DIR=${HOST_DIR}"
             echo "PACKAGE_DIR=artifacts/package/runtime"
           } >> "$GITHUB_ENV"
 
@@ -260,6 +290,16 @@ jobs:
           if [ -n "${LIBS_DIR}" ] && [ -d "${LIBS_DIR}" ]; then
             cp -R "${LIBS_DIR}/." "${PACKAGE_DIR}/"
           fi
+
+          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
+          # 只取两个可执行文件：同目录下还有 install_with_stripped_symbols
+          # 产出的符号文件（.dwarf/.dbg），不应进运行时包。
+          for host_bin in codenet dotnet; do
+            if [ -f "${HOST_DIR}/${host_bin}" ]; then
+              cp -fp "${HOST_DIR}/${host_bin}" "${PACKAGE_DIR}/"
+            fi
+          done
 
           echo "Packaged $(find "${PACKAGE_DIR}" -type f | wc -l | tr -d ' ') files"
           tar czf "artifacts/package/dotnet-runtime-linux-${{ matrix.arch }}.tar.gz" -C "${PACKAGE_DIR}" .
@@ -326,6 +366,9 @@ jobs:
           $libsDir = Get-ChildItem -Path "artifacts\bin\runtime" -Directory `
             -Filter "*-windows-Release-${{ matrix.arch }}" -ErrorAction SilentlyContinue |
             Select-Object -First 1
+          # 宿主 muxer 的安装目录，按 TargetRid 命名（win-x64.Release\corehost）；
+          # 注意不是上面的 `windows.` 前缀。
+          $hostDir = "artifacts\bin\win-${{ matrix.arch }}.Release\corehost"
 
           if (-not (Test-Path (Join-Path $coreclrDir "coreclr.dll")) -or
               -not (Test-Path (Join-Path $coreclrDir "corerun.exe"))) {
@@ -347,9 +390,17 @@ jobs:
             Write-Host "::warning::Managed libraries directory not found; artifact will contain CoreCLR only."
           }
 
+          if (-not (Test-Path (Join-Path $hostDir "codenet.exe"))) {
+            Write-Host "::error::Host muxer is missing: expected $hostDir\codenet.exe"
+            if (Test-Path $hostDir) { Get-ChildItem $hostDir }
+            exit 1
+          }
+          Write-Host "Host muxer        : $hostDir\codenet.exe"
+
           @(
             "CORECLR_DIR=$coreclrDir"
             "LIBS_DIR=$($libsDir.FullName)"
+            "HOST_DIR=$hostDir"
             "PACKAGE_DIR=artifacts\package\runtime"
           ) | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
@@ -361,6 +412,15 @@ jobs:
 
           if ($env:LIBS_DIR -and (Test-Path $env:LIBS_DIR)) {
             Copy-Item -Path (Join-Path $env:LIBS_DIR "*") -Destination $env:PACKAGE_DIR -Recurse -Force
+          }
+
+          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
+          foreach ($hostBin in @("codenet.exe", "dotnet.exe")) {
+            $hostSrc = Join-Path $env:HOST_DIR $hostBin
+            if (Test-Path $hostSrc) {
+              Copy-Item -Path $hostSrc -Destination $env:PACKAGE_DIR -Force
+            }
           }
 
           $count = (Get-ChildItem -Path $env:PACKAGE_DIR -Recurse -File).Count
