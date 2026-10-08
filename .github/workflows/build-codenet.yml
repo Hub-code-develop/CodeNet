@@ -88,15 +88,20 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "${HOST_DIR}/codenet" ]; then
-            echo "::error::Host muxer is missing: expected ${HOST_DIR}/codenet"
-            ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
-            exit 1
-          fi
+          # 运行时包必须自带宿主入口：muxer（codenet/dotnet）+ hostfxr/hostpolicy。
+          # 这些由 install_with_stripped_symbols 装进 corehost 目录，缺任一项包内就没有
+          # 任何可启动的宿主（此前正是如此，包只有 CoreCLR 与托管库）。
+          for host_file in codenet dotnet libhostfxr.dylib libhostpolicy.dylib; do
+            if [ ! -f "${HOST_DIR}/${host_file}" ]; then
+              echo "::error::Host file is missing: expected ${HOST_DIR}/${host_file}"
+              ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
+              exit 1
+            fi
+          done
 
           echo "CoreCLR output    : ${CORECLR_DIR}"
           echo "Managed libraries : ${LIBS_DIR:-<not found>}"
-          echo "Host muxer        : ${HOST_DIR}/codenet"
+          echo "Host files        : ${HOST_DIR}/{codenet,dotnet,libhostfxr.dylib,libhostpolicy.dylib}"
 
           if [ -n "${LIBS_DIR}" ]; then
             DLL_COUNT="$(find "${LIBS_DIR}" -maxdepth 1 -name '*.dll' | wc -l | tr -d ' ')"
@@ -127,13 +132,15 @@ jobs:
             cp -R "${LIBS_DIR}/." "${PACKAGE_DIR}/"
           fi
 
-          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
-          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
-          # 只取两个可执行文件：同目录下还有 install_with_stripped_symbols
-          # 产出的符号文件（.dwarf/.dbg），不应进运行时包。
-          for host_bin in codenet dotnet; do
-            if [ -f "${HOST_DIR}/${host_bin}" ]; then
-              cp -fp "${HOST_DIR}/${host_bin}" "${PACKAGE_DIR}/"
+          # 宿主 muxer 与 hostfxr/hostpolicy 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主。
+          # 逐个点名复制（而非整目录）：同目录还有 install_with_stripped_symbols 产出的
+          # .dwarf 调试符号、.a 静态库和头文件，都不该进运行时包。cp -fp 保留可执行权限。
+          for host_file in codenet dotnet libhostfxr.dylib libhostpolicy.dylib; do
+            if [ -f "${HOST_DIR}/${host_file}" ]; then
+              cp -fp "${HOST_DIR}/${host_file}" "${PACKAGE_DIR}/"
+            else
+              echo "::warning::${host_file} not found in ${HOST_DIR}"
             fi
           done
 
@@ -252,15 +259,20 @@ jobs:
             exit 1
           fi
 
-          if [ ! -f "${HOST_DIR}/codenet" ]; then
-            echo "::error::Host muxer is missing: expected ${HOST_DIR}/codenet"
-            ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
-            exit 1
-          fi
+          # 运行时包必须自带宿主入口：muxer（codenet/dotnet）+ hostfxr/hostpolicy。
+          # 这些由 install_with_stripped_symbols 装进 corehost 目录，缺任一项包内就没有
+          # 任何可启动的宿主（此前正是如此，包只有 CoreCLR 与托管库）。
+          for host_file in codenet dotnet libhostfxr.so libhostpolicy.so; do
+            if [ ! -f "${HOST_DIR}/${host_file}" ]; then
+              echo "::error::Host file is missing: expected ${HOST_DIR}/${host_file}"
+              ls -la "${HOST_DIR}" 2>/dev/null || echo "  (missing)"
+              exit 1
+            fi
+          done
 
           echo "CoreCLR output    : ${CORECLR_DIR}"
           echo "Managed libraries : ${LIBS_DIR:-<not found>}"
-          echo "Host muxer        : ${HOST_DIR}/codenet"
+          echo "Host files        : ${HOST_DIR}/{codenet,dotnet,libhostfxr.so,libhostpolicy.so}"
 
           if [ -n "${LIBS_DIR}" ]; then
             DLL_COUNT="$(find "${LIBS_DIR}" -maxdepth 1 -name '*.dll' | wc -l | tr -d ' ')"
@@ -291,13 +303,15 @@ jobs:
             cp -R "${LIBS_DIR}/." "${PACKAGE_DIR}/"
           fi
 
-          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
-          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
-          # 只取两个可执行文件：同目录下还有 install_with_stripped_symbols
-          # 产出的符号文件（.dwarf/.dbg），不应进运行时包。
-          for host_bin in codenet dotnet; do
-            if [ -f "${HOST_DIR}/${host_bin}" ]; then
-              cp -fp "${HOST_DIR}/${host_bin}" "${PACKAGE_DIR}/"
+          # 宿主 muxer 与 hostfxr/hostpolicy 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主。
+          # 逐个点名复制（而非整目录）：同目录还有 install_with_stripped_symbols 产出的
+          # .dbg 调试符号、.a 静态库和头文件，都不该进运行时包。cp -fp 保留可执行权限。
+          for host_file in codenet dotnet libhostfxr.so libhostpolicy.so; do
+            if [ -f "${HOST_DIR}/${host_file}" ]; then
+              cp -fp "${HOST_DIR}/${host_file}" "${PACKAGE_DIR}/"
+            else
+              echo "::warning::${host_file} not found in ${HOST_DIR}"
             fi
           done
 
@@ -390,12 +404,17 @@ jobs:
             Write-Host "::warning::Managed libraries directory not found; artifact will contain CoreCLR only."
           }
 
-          if (-not (Test-Path (Join-Path $hostDir "codenet.exe"))) {
-            Write-Host "::error::Host muxer is missing: expected $hostDir\codenet.exe"
-            if (Test-Path $hostDir) { Get-ChildItem $hostDir }
-            exit 1
+          # 运行时包必须自带宿主入口：muxer（codenet/dotnet）+ hostfxr/hostpolicy。
+          # 这些由 install_with_stripped_symbols 装进 corehost 目录，缺任一项包内就没有
+          # 任何可启动的宿主（此前正是如此，包只有 CoreCLR 与托管库）。
+          foreach ($hostFile in @("codenet.exe", "dotnet.exe", "hostfxr.dll", "hostpolicy.dll")) {
+            if (-not (Test-Path (Join-Path $hostDir $hostFile))) {
+              Write-Host "::error::Host file is missing: expected $hostDir\$hostFile"
+              if (Test-Path $hostDir) { Get-ChildItem $hostDir }
+              exit 1
+            }
           }
-          Write-Host "Host muxer        : $hostDir\codenet.exe"
+          Write-Host "Host files        : $hostDir\{codenet.exe,dotnet.exe,hostfxr.dll,hostpolicy.dll}"
 
           @(
             "CORECLR_DIR=$coreclrDir"
@@ -414,12 +433,16 @@ jobs:
             Copy-Item -Path (Join-Path $env:LIBS_DIR "*") -Destination $env:PACKAGE_DIR -Recurse -Force
           }
 
-          # 宿主 muxer 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
-          # 否则包里有运行时却没有任何可启动宿主（codenet / dotnet 都缺）。
-          foreach ($hostBin in @("codenet.exe", "dotnet.exe")) {
-            $hostSrc = Join-Path $env:HOST_DIR $hostBin
+          # 宿主 muxer 与 hostfxr/hostpolicy 不在 CORECLR_DIR/LIBS_DIR 内，必须单独收集，
+          # 否则包里有运行时却没有任何可启动宿主。
+          # 逐个点名复制（而非整目录）：同目录还有 hostfxr.lib/hostpolicy.lib 等导入库
+          # 和头文件，都不该进运行时包。
+          foreach ($hostFile in @("codenet.exe", "dotnet.exe", "hostfxr.dll", "hostpolicy.dll")) {
+            $hostSrc = Join-Path $env:HOST_DIR $hostFile
             if (Test-Path $hostSrc) {
               Copy-Item -Path $hostSrc -Destination $env:PACKAGE_DIR -Force
+            } else {
+              Write-Host "::warning::$hostFile not found in $env:HOST_DIR"
             }
           }
 

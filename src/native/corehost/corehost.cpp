@@ -100,6 +100,11 @@ bool is_exe_enabled_for_execution(pal::string_t* app_dll)
 
 #elif !defined(FEATURE_LIBHOST)
 #define CURHOST_TYPE    _X("dotnet")
+// CodeNet：同一个 muxer 也以 `codenet` 之名分发（见 corehost/dotnet/CMakeLists.txt）。
+// 下方的改名校验与托管入口推导都要认识这个别名，否则运行 codenet 会直接报
+// "cannot execute dotnet when renamed to codenet"。仅在 muxer 构建里定义，
+// apphost 不受影响。
+#define CURHOST_TYPE_ALIAS _X("codenet")
 #define CURHOST_EXE
 #endif
 
@@ -174,7 +179,15 @@ int exe_start(const int argc, const pal::char_t* argv[])
 #else
     pal::string_t own_name = strip_executable_ext(get_filename(host_path));
 
-    if (pal::strcasecmp(own_name.c_str(), CURHOST_TYPE) != 0)
+    bool is_known_host_name = pal::strcasecmp(own_name.c_str(), CURHOST_TYPE) == 0;
+#if defined(CURHOST_TYPE_ALIAS)
+    // CodeNet：放行 codenet 别名。这与上游的防冒充签名无关——两个名字指向同一份
+    // 由本项目自行分发的 muxer，不存在把第三方程序伪装成已签名 dotnet 的风险。
+    is_known_host_name = is_known_host_name
+        || pal::strcasecmp(own_name.c_str(), CURHOST_TYPE_ALIAS) == 0;
+#endif
+
+    if (!is_known_host_name)
     {
         // The reason for this check is security.
         // dotnet.exe is signed by Microsoft. It is technically possible to rename the file MyApp.exe and include it in the application.
@@ -203,7 +216,15 @@ int exe_start(const int argc, const pal::char_t* argv[])
 
     app_root.assign(host_path);
     app_path.assign(get_directory(app_root));
+#if defined(CURHOST_TYPE_ALIAS)
+    // CodeNet：托管入口恒为同目录的 dotnet.dll。CLI 程序集与配对的
+    // dotnet.runtimeconfig.json 都按这个名字就位；若用自身文件名推导，
+    // 叫 codenet 时会去找并不存在的 codenet.dll / codenet.runtimeconfig.json。
+    // 上面已确认 own_name 只可能是 dotnet 或 codenet，故直接用 CURHOST_TYPE。
+    append_path(&app_path, CURHOST_TYPE);
+#else
     append_path(&app_path, own_name.c_str());
+#endif
     app_path.append(_X(".dll"));
 #endif
 
