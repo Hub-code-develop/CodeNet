@@ -170,11 +170,11 @@ jobs:
             --install-location "/" \
             "${PKG_DIR}/dotnet-runtime-osx-${{ matrix.arch }}.pkg"
           ls -lh "${PKG_DIR}/dotnet-runtime-osx-${{ matrix.arch }}.pkg"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dotnet-runtime-osx-${{ matrix.arch }}
           path: artifacts/package/dotnet-runtime-osx-${{ matrix.arch }}.tar.gz
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: runner.os == 'macOS'
         with:
           name: dotnet-runtime-osx-${{ matrix.arch }}-installer
@@ -319,7 +319,7 @@ jobs:
           tar czf "artifacts/package/dotnet-runtime-linux-${{ matrix.arch }}.tar.gz" -C "${PACKAGE_DIR}" .
           ls -lh artifacts/package/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dotnet-runtime-linux-${{ matrix.arch }}
           path: artifacts/package/dotnet-runtime-linux-${{ matrix.arch }}.tar.gz
@@ -453,7 +453,7 @@ jobs:
           Compress-Archive -Path (Join-Path $env:PACKAGE_DIR "*") `
             -DestinationPath "artifacts\package\dotnet-runtime-win-${{ matrix.arch }}.zip"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dotnet-runtime-win-${{ matrix.arch }}
           path: artifacts\package\dotnet-runtime-win-${{ matrix.arch }}.zip
