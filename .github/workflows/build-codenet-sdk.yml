@@ -1,0 +1,213 @@
+name: Build CodeNet SDK
+
+# CodeNetSDK = 官方 .NET SDK 骨架 + CodeNet 修复版运行时，组装逻辑在
+# scripts/codenet-sdk/assemble-codenet-sdk.sh（历史背景与手工步骤见 HANDOFF-2026-10-02-CodeNet.md 第 3 节）。
+#
+# 与 build-codenet.yml 的分工（两个 Release tag 各管一类产物，见 HANDOFF 第 4 节的覆盖事故）：
+#   build-codenet.yml  -> `runtime-v10.0.400`：平铺运行时包（CoreCLR + 共享框架 + 宿主）
+#   本工作流            -> `sdk-v10.0.400`    ：完整 SDK 布局（顶层 dotnet11x64/），下游真正消费的资产
+# 之所以要拆开：以前两者都发到 sdk-v10.0.400 且用 --clobber，CI 的 macOS 运行时包会把同名的
+# 手工 arm64 SDK 资产覆盖掉（这就是 `-fixed` 后缀备份资产的来历）。
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: write
+
+env:
+  SDK_VERSION: '10.0.400'
+  RUNTIME_TAG: 'runtime-v10.0.400'
+  SDK_TAG: 'sdk-v10.0.400'
+
+jobs:
+  assemble:
+    name: Assemble SDK (osx-${{ matrix.arch }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # x64 也是必需的：MChub 拿 x64 SDK 交叉构建 osx-arm64，
+        # SulfurLauncher 的 x64 通道同样依赖它。
+        arch: [arm64, x64]
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+
+      - name: Download CodeNet runtime
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 运行时包由 build-codenet.yml 发到 runtime-v10.0.400。
+          # 缺包说明运行时流水线还没跑过（或 macOS job 还没加 x64 架构）。
+          DEST="$RUNNER_TEMP/runtime"
+          rm -rf "$DEST"
+          mkdir -p "$DEST"
+          ASSET="dotnet-codenet-osx-${{ matrix.arch }}.tar.gz"
+          gh release download "$RUNTIME_TAG" -R "$GITHUB_REPOSITORY" -p "$ASSET" -D "$DEST" \
+            || { echo "::error::没能从 ${RUNTIME_TAG} 下载 ${ASSET}，请先跑 build-codenet.yml"; exit 1; }
+          ls -lh "$DEST"
+          echo "RUNTIME_TARBALL=$DEST/$ASSET" >> "$GITHUB_ENV"
+
+      - name: Assemble CodeNetSDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/codenet-sdk/assemble-codenet-sdk.sh \
+            --arch "${{ matrix.arch }}" \
+            --sdk-version "$SDK_VERSION" \
+            --runtime "$RUNTIME_TARBALL" \
+            --out "artifacts/sdk/osx-${{ matrix.arch }}" \
+            --package
+
+      - name: Verify SDK tarball layout
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          ARCH="${{ matrix.arch }}"
+          RID="osx-${ARCH}"
+          TARBALL="artifacts/sdk/${RID}/dotnet-codenet-${RID}.tar.gz"
+          [ -f "$TARBALL" ] || { echo "::error::没找到产物包 ${TARBALL}"; exit 1; }
+
+          # 完整清单存一份，别用 head 截断（历史事故就出在这）。
+          tar tzf "$TARBALL" > "$RUNNER_TEMP/list.txt"
+          echo "包内条目数：$(wc -l < "$RUNNER_TEMP/list.txt" | tr -d ' ')"
+
+          # 顶层目录必须且只能是 dotnet11x64 —— 下游 tar xzf 后访问 $DEST/dotnet11x64/dotnet。
+          top="$(awk -F/ '{print $1}' "$RUNNER_TEMP/list.txt" | sort -u)"
+          if [ "$top" != "dotnet11x64" ]; then
+            echo "::error::顶层目录不是 dotnet11x64：$top"
+            exit 1
+          fi
+
+          fail=0
+          require() {
+            if grep -qx "$1" "$RUNNER_TEMP/list.txt"; then
+              echo "  OK   $1"
+            else
+              echo "::error::  包内缺少 $1"
+              fail=1
+            fi
+          }
+          require "dotnet11x64/dotnet"
+          require "dotnet11x64/codenet"
+
+          # 版本目录从骨架探测，这里用通配匹配，避免把版本号写死（hostfxr 版本 = 运行时版本，
+          # 与 SDK 版本号不是一回事，写死会错）。
+          for pattern in \
+            "^dotnet11x64/host/fxr/[^/]+/libhostfxr\.dylib$" \
+            "^dotnet11x64/sdk/[^/]+/dotnet\.dll$" \
+            "^dotnet11x64/shared/Microsoft\.NETCore\.App/[^/]+/libcoreclr\.dylib$" \
+            "^dotnet11x64/shared/Microsoft\.NETCore\.App/[^/]+/libclrjit\.dylib$" \
+            "^dotnet11x64/shared/Microsoft\.NETCore\.App/[^/]+/libclrgc\.dylib$" \
+            "^dotnet11x64/shared/Microsoft\.NETCore\.App/[^/]+/libhostpolicy\.dylib$" \
+            "^dotnet11x64/packs/Microsoft\.NETCore\.App\.Runtime\.${RID}/[^/]+/runtimes/${RID}/native/libcoreclr\.dylib$" \
+            "^dotnet11x64/packs/Microsoft\.NETCore\.App\.Runtime\.${RID}/[^/]+/runtimes/${RID}/native/libclrjit\.dylib$" ; do
+            if grep -Eq "$pattern" "$RUNNER_TEMP/list.txt"; then
+              echo "  OK   /$pattern/"
+            else
+              echo "::error::  包内没有匹配 /$pattern/ 的条目"
+              fail=1
+            fi
+          done
+          [ "$fail" -eq 0 ] || { echo "::error::SDK 产物布局校验失败"; exit 1; }
+
+          echo "TARBALL=$TARBALL" >> "$GITHUB_ENV"
+
+      - name: Smoke test assembled SDK
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          ARCH="${{ matrix.arch }}"
+          # 直接从产物包里解出来测，顺带验证打包本身没坏。
+          ROOT="$RUNNER_TEMP/sdkroot"
+          rm -rf "$ROOT"
+          mkdir -p "$ROOT"
+          tar xzf "$TARBALL" -C "$ROOT"
+          DOTNET_ROOT="$ROOT/dotnet11x64"
+          export DOTNET_ROOT
+          export PATH="$DOTNET_ROOT:$PATH"
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1
+
+          # 跨架构（x64 SDK 跑在 arm64 runner 上）需要 Rosetta；跑不动就只告警，
+          # 布局与哈希校验已经在前面严格做过了。
+          CROSS=0
+          STRICT=1
+          if [ "$(uname -m)" != "$ARCH" ]; then
+            if arch -x86_64 true >/dev/null 2>&1; then
+              CROSS=1
+            else
+              STRICT=0
+            fi
+          fi
+
+          # 注意：这里不能用空数组 + "${arr[@]}"，macOS runner 的 bash 3.2 在 set -u 下会报错。
+          smoke() {
+            local rc=0
+            if [ "$CROSS" -eq 1 ]; then
+              arch -x86_64 "$@" || rc=$?
+            else
+              "$@" || rc=$?
+            fi
+            [ "$rc" -eq 0 ] && return 0
+            if [ "$STRICT" -eq 1 ]; then
+              echo "::error::冒烟测试命令失败（rc=${rc}）：$*"
+              exit 1
+            fi
+            echo "::warning::本机无 Rosetta，无法执行 $ARCH 宿主，跳过冒烟测试"
+            exit 0
+          }
+
+          smoke "$DOTNET_ROOT/codenet" --info
+
+          # 真跑一次编译 + 运行：这是「这套 SDK 到底能不能用」的最终判据，
+          # 只测 --version/--list-sdks 不足以证明共享框架与宿主三件套能协同工作。
+          WORK="$RUNNER_TEMP/smoke"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          cd "$WORK"
+          smoke "$DOTNET_ROOT/dotnet" new console -o app
+          cd app
+          smoke "$DOTNET_ROOT/dotnet" run
+
+          echo "冒烟测试通过（${ARCH}）"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codenet-sdk-osx-${{ matrix.arch }}
+          path: artifacts/sdk/osx-${{ matrix.arch }}/dotnet-codenet-osx-${{ matrix.arch }}.tar.gz
+
+      - name: Publish SDK to Release
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="$SDK_TAG"
+          # 首次运行时 Release 可能不存在；多个矩阵 job 会并发建，失败（已被对方抢先）就忽略。
+          if ! gh release view "$TAG" >/dev/null 2>&1; then
+            gh release create "$TAG" \
+              --title "CodeNet SDK v${SDK_VERSION}" \
+              --notes "CodeNetSDK：官方 .NET SDK v${SDK_VERSION} 骨架 + CodeNet 修复版运行时（signalfix）。由 build-codenet-sdk 工作流自动组装发布，组装脚本见 scripts/codenet-sdk/assemble-codenet-sdk.sh。" \
+              >/dev/null 2>&1 || true
+          fi
+
+          # 现在只有本工作流会写 sdk-v10.0.400，--clobber 覆盖的是上一版 SDK，语义正确。
+          echo "uploading $(basename "$TARBALL")"
+          gh release upload "$TAG" "$TARBALL" --clobber
+
+          # 兼容旧引用：sulfur-launcher 的 arm64 通道一直按 `-fixed` 取资产
+          # （那是当年被 CI 运行时包覆盖后的备份名）。这里多发一份同名副本，
+          # 等下游统一切到 `dotnet-codenet-osx-arm64.tar.gz` 后再删。
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            ALIAS="$(dirname "$TARBALL")/dotnet-codenet-osx-arm64-fixed.tar.gz"
+            cp -f "$TARBALL" "$ALIAS"
+            echo "uploading $(basename "$ALIAS")"
+            gh release upload "$TAG" "$ALIAS" --clobber
+          fi

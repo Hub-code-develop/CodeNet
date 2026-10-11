@@ -40,13 +40,16 @@ jobs:
   #      See LibrariesAllBinArtifactsPath in eng/liveBuilds.targets
   # The packaging step below merges both into one directory.
   build-macos:
-    name: Build macOS (Apple Silicon)
+    name: Build macOS (${{ matrix.arch }})
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.target_os == 'osx' || github.event_name != 'workflow_dispatch' }}
     runs-on: macos-latest
     strategy:
       fail-fast: false
       matrix:
-        arch: [arm64]
+        # x64 与 arm64 都要：arm64 供 SulfurLauncher 的 arm64 通道；
+        # x64 供 MChub（拿 x64 SDK 交叉构建 osx-arm64）与 SulfurLauncher 的 x64 通道。
+        # 两者都进 sdk-v10.0.400 的 CodeNetSDK（见 build-codenet-sdk.yml）。
+        arch: [arm64, x64]
     steps:
       - uses: actions/checkout@v5
         with:
@@ -187,14 +190,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=sdk-v10.0.400
+          TAG=runtime-v10.0.400
           # 新仓库或首次运行时 Release 可能尚不存在，必须先确保它存在：
           # 否则 gh release upload 会以 "release not found" 失败，让构建成功却整个 job 判红。
           # 多个 job 会并发执行这一步，因此创建失败（例如已被其它 job 抢先创建）时忽略错误。
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
-              --title "CodeNet SDK v10.0.400" \
-              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架），由 build-codenet 工作流自动发布。" \
+              --title "CodeNet Runtime v10.0.400" \
+              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架 + 宿主），平铺布局，需并入既有 SDK 使用。可用的完整 SDK 见 Release sdk-v10.0.400。" \
               >/dev/null 2>&1 || true
           fi
           cd artifacts/package
@@ -331,14 +334,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=sdk-v10.0.400
+          TAG=runtime-v10.0.400
           # 新仓库或首次运行时 Release 可能尚不存在，必须先确保它存在：
           # 否则 gh release upload 会以 "release not found" 失败，让构建成功却整个 job 判红。
           # 多个 job 会并发执行这一步，因此创建失败（例如已被其它 job 抢先创建）时忽略错误。
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
-              --title "CodeNet SDK v10.0.400" \
-              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架），由 build-codenet 工作流自动发布。" \
+              --title "CodeNet Runtime v10.0.400" \
+              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架 + 宿主），平铺布局，需并入既有 SDK 使用。可用的完整 SDK 见 Release sdk-v10.0.400。" \
               >/dev/null 2>&1 || true
           fi
           cd artifacts/package
@@ -465,14 +468,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          TAG=sdk-v10.0.400
+          TAG=runtime-v10.0.400
           # 新仓库或首次运行时 Release 可能尚不存在，必须先确保它存在：
           # 否则 gh release upload 会以 "release not found" 失败，让构建成功却整个 job 判红。
           # 多个 job 会并发执行这一步，因此创建失败（例如已被其它 job 抢先创建）时忽略错误。
           if ! gh release view "$TAG" >/dev/null 2>&1; then
             gh release create "$TAG" \
-              --title "CodeNet SDK v10.0.400" \
-              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架），由 build-codenet 工作流自动发布。" \
+              --title "CodeNet Runtime v10.0.400" \
+              --notes "CodeNet 运行时构建产物（CoreCLR + 共享框架 + 宿主），平铺布局，需并入既有 SDK 使用。可用的完整 SDK 见 Release sdk-v10.0.400。" \
               >/dev/null 2>&1 || true
           fi
           cd artifacts/package
@@ -483,3 +486,15 @@ jobs:
             echo "uploading $new"
             gh release upload "$TAG" "$new" --clobber
           done
+
+  # 运行时包发布完毕后再组装 CodeNetSDK（官方 SDK 骨架 + 刚发出去的运行时）。
+  # 组装逻辑与产物校验都在 build-codenet-sdk.yml + scripts/codenet-sdk/assemble-codenet-sdk.sh。
+  # 只在 main 上跑：SDK 工作流是从 Release 取运行时包的，PR 上没有资产可取。
+  # 需显式判 build-macos 的结果：workflow_dispatch 指定 linux/win 时该 job 会被 skip，
+  # 而 needs 里有 skipped 的 job 时默认会把本 job 也 skip 掉。
+  build-sdk:
+    needs: [build-macos, build-linux, build-windows]
+    if: ${{ always() && github.ref == 'refs/heads/main' && needs.build-macos.result == 'success' }}
+    uses: ./.github/workflows/build-codenet-sdk.yml
+    # 被调工作流要用 GITHUB_TOKEN 下载运行时包、上传 SDK 资产。
+    secrets: inherit
