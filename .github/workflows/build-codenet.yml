@@ -51,7 +51,7 @@ jobs:
         # 两者都进 sdk-v10.0.400 的 CodeNetSDK（见 build-codenet-sdk.yml）。
         arch: [arm64, x64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -221,7 +221,7 @@ jobs:
             runs-on: ubuntu-24.04-arm
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
@@ -366,7 +366,7 @@ jobs:
             runs-on: windows-11-arm
     runs-on: ${{ matrix.runs-on }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
