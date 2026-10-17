@@ -9661,7 +9661,14 @@ int gc_heap::grow_brick_card_tables (uint8_t* start,
 
             if (saved_g_lowest_address < g_gc_lowest_address)
             {
-                if (ps > (size_t)g_gc_lowest_address)
+                // CodeNet: 这里必须是 >=，不能是 >（上游 dotnet/runtime#131324，backport
+                // #131432）。g_gc_lowest_address 恰好被减半到 0 时（例如 high=0x480000000、
+                // low=0x240000000、ps=0x240000000），> 判定不成立会走进 else，算出
+                // saved_g_lowest_address = min(start, 0) = 0。此后所有「指针是否在堆内」的
+                // 判断 (o >= lowest && o < highest) 对任何低位地址都成立，GC 会把栈/句柄表里
+                // 的任意值（UTF-16 文本、0x8、-8…）当成对象去解 MethodTable，崩在
+                // mark_object_simple1 / background_mark_simple1。ARM64 macOS 最容易命中。
+                if (ps >= (size_t)g_gc_lowest_address)
                     saved_g_lowest_address = (uint8_t*)(size_t)OS_PAGE_SIZE;
                 else
                 {
