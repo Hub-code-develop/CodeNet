@@ -69,7 +69,13 @@ endif(CLR_CMAKE_USE_SYSTEM_LIBUNWIND)
 
 if(CLR_CMAKE_TARGET_OSX)
   add_definitions(-DTARGET_OSX)
-  if(CLR_CMAKE_HOST_ARCH_AMD64)
+  # CodeNet: XSTATE_SUPPORTED 打开的是「从 Linux 的 fpstate 里读 AVX-512/APX 状态」那套代码，
+  # context.h 会去 include <asm/sigcontext.h> —— 只有 Linux 有那个头。
+  # 我们强制 HAVE_MACH_EXCEPTIONS=0 走 POSIX 信号路径后，macOS x64 会命中这段，
+  # 直接编译失败（fatal error: 'asm/sigcontext.h' file not found）。
+  # 而 macOS 的 ucontext 本来也不携带 YMM/ZMM 上半部，所以信号路径下这个特性无从谈起，
+  # 只在仍然使用 Mach 异常端口（老 macOS）的构建里保留。
+  if(CLR_CMAKE_HOST_ARCH_AMD64 AND HAVE_MACH_EXCEPTIONS)
     add_definitions(-DXSTATE_SUPPORTED)
   endif()
 endif()
