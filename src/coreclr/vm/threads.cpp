@@ -361,6 +361,15 @@ void SetThread(Thread* t)
         InitializeCurrentThreadsStaticData(t);
         EnsureTlsDestructionMonitor();
         t->InitRuntimeThreadLocals();
+
+#if defined(TARGET_UNIX) && !defined(TARGET_WASM)
+        // CodeNet: native threads (and threads dispatched by libdispatch / started by
+        // launchd) may enter the runtime with the GC activation signal masked. Unmask it
+        // on CLR attachment so the GC can interrupt managed execution and suspend this
+        // thread. Port of dotnet/runtime#135276; without it the GC can walk the stack of a
+        // still-running thread and treat native stack contents as object references.
+        PAL_UnmaskActivationSignal();
+#endif
     }
 #ifdef TARGET_WINDOWS
     else if (origThread != NULL)

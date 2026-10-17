@@ -3592,6 +3592,14 @@ PAL_SetActivationFunction(
     IN PAL_ActivationFunction pActivationFunction,
     IN PAL_SafeActivationCheckFunction pSafeActivationCheckFunction);
 
+// CodeNet: unblock the runtime activation signal for the current thread. Needed for
+// threads that enter the process with the signal masked (libdispatch / launchd), so the
+// GC can suspend them for a collection. Port of dotnet/runtime#135276.
+PALIMPORT
+VOID
+PALAPI
+PAL_UnmaskActivationSignal(VOID);
+
 PALIMPORT
 BOOL
 PALAPI

@@ -258,7 +258,46 @@ cp -fp "$RUNTIME_DIR/dotnet"  "$TOP_DIR/dotnet"
 chmod +x "$TOP_DIR/codenet" "$TOP_DIR/dotnet"
 
 # ---------------------------------------------------------------------------
-# 9. 校验产物
+# 9. 关闭 SDK CLI 的并发 GC（macOS 27 稳定性 + 吞吐）
+# ---------------------------------------------------------------------------
+# 2026-10-16 实测定性：macOS 27（SIP/AMFI 关闭）上，后台（并发）GC 的标记阶段会在栈扫描里
+# 解到空指针，直接 SIGSEGV / SIGBUS，崩溃栈为：
+#     mark_object_simple1 <- mark_object_simple <- GcStackCrawlCallBack
+#     <- EnumerateLiveSlots <- Promote <- WKS::gc_heap::mark_phase
+# 触发面是线程池重的负载 —— MSBuild / Roslyn / NuGet 正是这一类。实测 codenet build：
+#     基线        崩溃 7/20 (35%)，干净构建成功耗时中位数 1466ms
+#     关并发 GC    崩溃 0/20 ( 0%)，成功耗时中位数 1143ms（-22%）
+# 只改 SDK CLI 自己的 runtimeconfig，不动用户应用的默认值；应用若遇到同类崩溃，
+# 可在项目里自行设 <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>。
+# 注意这是规避不是根治 —— 根治要在运行时的并发 GC 栈扫描里查（见 HANDOFF 待办）。
+SDK_RC="$TOP_DIR/sdk/$SDK_DIR_NAME/dotnet.runtimeconfig.json"
+if [ -f "$SDK_RC" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+        python3 - "$SDK_RC" <<'PYEOF'
+import json, sys
+path = sys.argv[1]
+with open(path) as fh:
+    cfg = json.load(fh)
+props = cfg.setdefault("runtimeOptions", {}).setdefault("configProperties", {})
+props["System.GC.Concurrent"] = False
+with open(path, "w") as fh:
+    json.dump(cfg, fh, indent=2)
+    fh.write("\n")
+PYEOF
+        if grep -q '"System.GC.Concurrent": false' "$SDK_RC"; then
+            log "已关闭 SDK CLI 并发 GC：$SDK_RC"
+        else
+            die "写入 System.GC.Concurrent=false 失败：$SDK_RC"
+        fi
+    else
+        warn "没有 python3，跳过并发 GC 规避补丁（macOS 27 上 SDK CLI 可能间歇性崩溃）"
+    fi
+else
+    warn "没找到 SDK CLI 的 runtimeconfig，跳过并发 GC 规避补丁：$SDK_RC"
+fi
+
+# ---------------------------------------------------------------------------
+# 10. 校验产物
 # ---------------------------------------------------------------------------
 fail=0
 check_file() { # 描述 路径
@@ -271,18 +310,31 @@ check_file "共享框架 hostpolicy"  "$RT_DIR/$HOSTPOLICY"
 check_file "hostfxr"              "$FXR_DIR/$HOSTFXR"
 check_file "宿主 muxer codenet"   "$TOP_DIR/codenet"
 check_file "宿主 muxer dotnet"    "$TOP_DIR/dotnet"
+# 并发 GC 必须已关，否则 macOS 27 上 SDK CLI 会间歇性 SIGSEGV（第 9 节）
+if grep -q '"System.GC.Concurrent": false' "$SDK_RC" 2>/dev/null; then
+    log "  OK   SDK CLI 并发 GC 已关闭"
+else
+    printf '[%s] ::error::  SDK CLI 未关闭并发 GC (%s)\n' "$SCRIPT_NAME" "$SDK_RC" >&2
+    fail=1
+fi
 [ "$fail" -eq 0 ] || die "产物校验失败"
 
-# 被替换的原生库哈希必须与官方原件不同，否则说明覆盖没生效（或拿到了未修复的运行时）
+# 核心不变量：产物里的原生库必须就是 CodeNet 运行时里的那一份。
+# 直接和运行时源文件比哈希，而不是和骨架原件比 —— 骨架本身可能已经是 CodeNet 运行时
+# （例如拿一套现成的 CodeNetSDK 当骨架重建），那种情况下「必须与原骨架不同」会误报失败。
 for base in $REQUIRED_NATIVES $OPTIONAL_NATIVES; do
     target="$RT_DIR/${base}.${NATIVE_EXT}"
     [ -f "$target" ] || continue
+    src_hash="$(hash_of "$RUNTIME_DIR/${base}.${NATIVE_EXT}")"
     new_hash="$(hash_of "$target")"
     orig_var="ORIG_$base"
     orig_hash="${!orig_var}"
-    if [ "$orig_hash" = "$new_hash" ]; then
-        printf '[%s] ::error::%s 与骨架原件哈希相同，替换未生效\n' "$SCRIPT_NAME" "${base}.${NATIVE_EXT}" >&2
+    if [ "$src_hash" != "$new_hash" ]; then
+        printf '[%s] ::error::%s 与 CodeNet 运行时不一致（产物 %s… / 运行时 %s…），替换未生效\n' \
+            "$SCRIPT_NAME" "${base}.${NATIVE_EXT}" "${new_hash:0:12}" "${src_hash:0:12}" >&2
         fail=1
+    elif [ "$orig_hash" = "$new_hash" ]; then
+        log "  OK   ${base}.${NATIVE_EXT} 已是 CodeNet 版本（骨架原件相同，无需替换）"
     else
         log "  OK   ${base}.${NATIVE_EXT} 已替换（骨架原件 ${orig_hash:0:12}… -> CodeNet ${new_hash:0:12}…）"
     fi
@@ -326,7 +378,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 10. 打平临时目录，按需打包
+# 11. 打平临时目录，按需打包
 # ---------------------------------------------------------------------------
 rm -rf "$WORK_DIR"
 

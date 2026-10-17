@@ -526,6 +526,21 @@ void UnmaskActivationSignal()
     }
 }
 
+// CodeNet: exported wrapper so the VM can unmask the activation signal when a thread is
+// attached to the runtime (port of dotnet/runtime#135276).
+//
+// Threads created by libdispatch (dispatch_async, or a GUI process started by launchd)
+// enter the process with the activation signal masked. Without unmasking it, the GC
+// cannot interrupt such a thread to suspend it for a collection - the signal stays
+// pending while the thread keeps running. The GC then walks a live, moving stack and
+// interprets arbitrary stack contents as object references (observed on macOS 27 as
+// crashes in gc_heap::mark_object_simple with ASCII data such as "7Library" treated as
+// an object pointer).
+extern "C" void PALAPI PAL_UnmaskActivationSignal()
+{
+    UnmaskActivationSignal();
+}
+
 void MaskActivationSignal()
 {
     sigset_t signal_set;
