@@ -239,6 +239,25 @@ cp -fp "$RUNTIME_DIR/$HOSTFXR"    "$FXR_DIR/$HOSTFXR"
 #    的产物是否自带修复（已验证自包含发布的原生库取自 SDK 的 packs/，不是只从 NuGet 拉）
 # ---------------------------------------------------------------------------
 PACK_NATIVE="$TOP_DIR/packs/Microsoft.NETCore.App.Runtime.${RID}/${RT_DIR_NAME}/runtimes/${RID}/native"
+if [ ! -d "$PACK_NATIVE" ]; then
+    # 官方 SDK 压缩包的 packs/ 里只有 Ref 与 Host，**不含 runtime pack**（那是按需从
+    # NuGet 拉的），所以直接组装会缺这一层。从 NuGet 补一份官方 runtime pack 再覆盖
+    # 原生库；版本跟共享框架对齐（例如 10.0.11）。
+    RID_LOWER="$(printf '%s' "$RID" | tr 'A-Z' 'a-z')"
+    PACK_ID="microsoft.netcore.app.runtime.${RID_LOWER}"
+    PACK_VER="$RT_DIR_NAME"
+    PACK_URL="https://api.nuget.org/v3-flatcontainer/${PACK_ID}/${PACK_VER}/${PACK_ID}.${PACK_VER}.nupkg"
+    log "骨架里没有 runtime pack，下载官方包：$PACK_URL"
+    nupkg="$WORK_DIR/${PACK_ID}.${PACK_VER}.nupkg"
+    curl -fSL --retry 3 --retry-delay 5 -o "$nupkg" "$PACK_URL" || die "runtime pack 下载失败：$PACK_URL"
+    mkdir -p "$TOP_DIR/packs/Microsoft.NETCore.App.Runtime.${RID}/${PACK_VER}"
+    unzip -q "$nupkg" -d "$TOP_DIR/packs/Microsoft.NETCore.App.Runtime.${RID}/${PACK_VER}" \
+        || die "runtime pack 解压失败：$nupkg"
+    cp -f "$nupkg" "$TOP_DIR/packs/Microsoft.NETCore.App.Runtime.${RID}/${PACK_VER}/"
+    # SDK 靠 .sha512 校验 pack 完整性，缺了它会认为这一份 pack 不完整
+    openssl dgst -sha512 -binary "$nupkg" | openssl base64 -A \
+        > "$TOP_DIR/packs/Microsoft.NETCore.App.Runtime.${RID}/${PACK_VER}/${PACK_ID}.${PACK_VER}.nupkg.sha512"
+fi
 if [ -d "$PACK_NATIVE" ]; then
     log "覆盖 runtime pack 原生库 -> $PACK_NATIVE"
     for base in $REQUIRED_NATIVES $OPTIONAL_NATIVES; do
@@ -260,16 +279,15 @@ chmod +x "$TOP_DIR/codenet" "$TOP_DIR/dotnet"
 # ---------------------------------------------------------------------------
 # 9. 关闭 SDK CLI 的并发 GC（macOS 27 稳定性 + 吞吐）
 # ---------------------------------------------------------------------------
-# 2026-10-16 实测定性：macOS 27（SIP/AMFI 关闭）上，后台（并发）GC 的标记阶段会在栈扫描里
-# 解到空指针，直接 SIGSEGV / SIGBUS，崩溃栈为：
-#     mark_object_simple1 <- mark_object_simple <- GcStackCrawlCallBack
-#     <- EnumerateLiveSlots <- Promote <- WKS::gc_heap::mark_phase
+# 2026-10-16 实测：macOS 27（SIP/AMFI 关闭）上，后台（并发）GC 的标记阶段会随机
+# SIGSEGV / SIGBUS，崩溃栈为 mark_object_simple1 / background_mark_simple1。
 # 触发面是线程池重的负载 —— MSBuild / Roslyn / NuGet 正是这一类。实测 codenet build：
-#     基线        崩溃 7/20 (35%)，干净构建成功耗时中位数 1466ms
-#     关并发 GC    崩溃 0/20 ( 0%)，成功耗时中位数 1143ms（-22%）
-# 只改 SDK CLI 自己的 runtimeconfig，不动用户应用的默认值；应用若遇到同类崩溃，
-# 可在项目里自行设 <ConcurrentGarbageCollection>false</ConcurrentGarbageCollection>。
-# 注意这是规避不是根治 —— 根治要在运行时的并发 GC 栈扫描里查（见 HANDOFF 待办）。
+#     并发 GC 打开  25 轮里崩 6~7 次（24%~28%）
+#     并发 GC 关闭  25 轮 0 崩溃，成功耗时中位数还低 22%
+# 当时的结论是「先绕过去」。真正的根因 2026-10-18 才定位到：grow_brick_card_tables
+# 里 `ps > g_gc_lowest_address` 少了等号，g_gc_lowest_address 恰好被减半到 0 之后，
+# GC 把任何低位地址都当成堆内指针 —— 修复见 gc.cpp 的 #131324 移植。
+# 现在运行时已经修好，这个开关只是「多一层保险」，等本机 A/B 复测确认后再删。
 SDK_RC="$TOP_DIR/sdk/$SDK_DIR_NAME/dotnet.runtimeconfig.json"
 if [ -f "$SDK_RC" ]; then
     if command -v python3 >/dev/null 2>&1; then
