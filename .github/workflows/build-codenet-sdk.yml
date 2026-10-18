@@ -177,6 +177,68 @@ jobs:
 
           echo "冒烟测试通过（${ARCH}）"
 
+      # 稳定性探测：单次冒烟只能证明「能跑一次」，而 macOS 上这套运行时的 GC 崩溃是概率性的
+      # （历史观测 10%~25%）。连跑 25 次构建统计被信号打死的次数，并把每次 stderr 存下来
+      # （含 CODENET_TRACE_ACTCTX 的诊断行）。先不阻断发布，只作回归观测。
+      - name: Stability probe
+        id: probe
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          ROOT="$RUNNER_TEMP/sdkroot"
+          DOTNET_ROOT="$ROOT/dotnet11x64"
+          export DOTNET_ROOT
+          export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 MSBUILDDISABLENODEREUSE=1
+          export CODENET_TRACE_ACTCTX=1
+
+          CROSS=0
+          if [ "$(uname -m)" != "${{ matrix.arch }}" ] && arch -x86_64 true >/dev/null 2>&1; then
+            CROSS=1
+          fi
+          run_dn() { if [ "$CROSS" -eq 1 ]; then arch -x86_64 "$@"; else "$@"; fi; }
+
+          LOGS="$RUNNER_TEMP/probe-logs"
+          rm -rf "$LOGS"; mkdir -p "$LOGS"
+          WORK="$RUNNER_TEMP/probe"
+          rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
+          for _ in 1 2 3 4 5; do
+            rm -rf app
+            run_dn "$DOTNET_ROOT/dotnet" new console -o app >/dev/null 2>&1 && break
+          done
+          cd app
+
+          crashes=0; ok=0; other=0
+          for i in $(seq 1 25); do
+            rm -rf obj bin
+            run_dn "$DOTNET_ROOT/dotnet" build -c Release > "$LOGS/run-$i.log" 2>&1
+            rc=$?
+            if [ "$rc" -ge 128 ]; then
+              crashes=$((crashes + 1)); echo "run $i: CRASH rc=$rc"
+            elif [ "$rc" -ne 0 ]; then
+              other=$((other + 1)); echo "run $i: fail rc=$rc"
+            else
+              ok=$((ok + 1))
+            fi
+          done
+
+          echo "==== stability: crash=$crashes ok=$ok other=$other (25 runs) ===="
+          echo "crashes=$crashes" >> "$GITHUB_OUTPUT"
+
+          if ls "$LOGS"/run-*.log >/dev/null 2>&1; then
+            echo "---- [actctx] 诊断行（前 40 条）----"
+            grep -h "\[actctx\]" "$LOGS"/run-*.log | head -40 || echo "（没有 actctx 诊断行）"
+          fi
+
+      - name: Upload probe logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codenet-probe-osx-${{ matrix.arch }}
+          path: ${{ runner.temp }}/probe-logs/run-*.log
+          if-no-files-found: warn
+
       - uses: actions/upload-artifact@v4
         with:
           name: codenet-sdk-osx-${{ matrix.arch }}

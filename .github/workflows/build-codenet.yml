@@ -49,7 +49,8 @@ jobs:
         # x64 与 arm64 都要：arm64 供 SulfurLauncher 的 arm64 通道；
         # x64 供 MChub（拿 x64 SDK 交叉构建 osx-arm64）与 SulfurLauncher 的 x64 通道。
         # 两者都进 sdk-v10.0.400 的 CodeNetSDK（见 build-codenet-sdk.yml）。
-        arch: [arm64, x64]
+        # workflow_dispatch 只建 inputs.target_arch 指定的那一个，排障时能把一轮从 6 个 job 缩到 1 个。
+        arch: ${{ github.event_name == 'workflow_dispatch' && fromJSON(format('["{0}"]', inputs.target_arch)) || fromJSON('["arm64", "x64"]') }}
     steps:
       - uses: actions/checkout@v5
         with:

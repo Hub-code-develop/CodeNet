@@ -36,6 +36,9 @@ SET_DEFAULT_DEBUG_CHANNEL(EXCEPT); // some headers have code with asserts, so do
 #include <errno.h>
 #include <signal.h>
 #include <dlfcn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #if !HAVE_MACH_EXCEPTIONS
 #include "pal/init.h"
@@ -80,6 +83,17 @@ extern void* g_InvokeActivationHandlerReturnAddress;
 #ifdef __APPLE__
 bool g_canSendSignalToDispatchQueueThreads = false;
 #endif // __APPLE__
+
+// CodeNet 诊断：GC 挂起线程时，PAL_VirtualUnwind 要靠「信号处理帧的 FP + 固定偏移」
+// 把被打断处的 CONTEXT 抠回来。偏移一旦和实际栈布局对不上，GC 就会拿着垃圾上下文
+// 去遍历一个不存在的栈，最后崩在 gc_heap::mark_object_simple1。
+// 这里记下每次激活的现场，供 PAL_VirtualUnwind 对照；只在 CODENET_TRACE_ACTCTX=1 时打印。
+volatile void*  g_actctx_fp = nullptr;
+volatile void*  g_actctx_ptr = nullptr;
+volatile int    g_actctx_offset = 0;
+volatile size_t g_actctx_pc = 0;
+volatile size_t g_actctx_tid = 0;
+int             g_actctx_trace = -1; // -1 = 未初始化
 #endif
 
 static void sigill_handler(int code, siginfo_t *siginfo, void *context);
@@ -943,6 +957,34 @@ static void inject_activation_handler(int code, siginfo_t *siginfo, void *contex
         if (g_safeActivationCheckFunction(CONTEXTGetPC(&winContext)))
         {
             g_inject_activation_context_locvar_offset = (int)((char*)&winContext - (char*)__builtin_frame_address(0));
+
+            // CodeNet 诊断：记录现场，供 PAL_VirtualUnwind 对照（见文件头的说明）
+            g_actctx_fp = __builtin_frame_address(0);
+            g_actctx_ptr = &winContext;
+            g_actctx_offset = g_inject_activation_context_locvar_offset;
+            g_actctx_pc = CONTEXTGetPC(&winContext);
+            g_actctx_tid = (size_t)pthread_self();
+            if (g_actctx_trace < 0)
+            {
+                const char* v = getenv("CODENET_TRACE_ACTCTX");
+                g_actctx_trace = (v != nullptr && v[0] == '1') ? 1 : 0;
+            }
+            if (g_actctx_trace)
+            {
+                // 这里在信号处理上下文里跑，不能用 fprintf（stdio 可能被锁住），
+                // 用 snprintf + write 更安全。
+                char actBuf[256];
+                int n = snprintf(actBuf, sizeof(actBuf),
+                                 "[actctx] enter tid=%zu fp=%p ctx=%p off=%d pc=%p\n",
+                                 g_actctx_tid, (void*)g_actctx_fp, (void*)g_actctx_ptr,
+                                 g_actctx_offset, (void*)g_actctx_pc);
+                if (n > 0)
+                {
+                    ssize_t ignored = write(STDERR_FILENO, actBuf, (size_t)n);
+                    (void)ignored;
+                }
+            }
+
             int savedErrNo = errno; // Make sure that errno is not modified
             InvokeActivationHandler(&winContext);
             errno = savedErrNo;

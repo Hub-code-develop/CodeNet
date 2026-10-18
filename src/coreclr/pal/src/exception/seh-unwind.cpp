@@ -22,6 +22,7 @@ Abstract:
 #include "pal/context.h"
 #include "pal.h"
 #include <dlfcn.h>
+#include <stdio.h>
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
@@ -649,6 +650,17 @@ int g_hardware_exception_context_locvar_offset = 0;
 // where an activation signal interrupted the thread.
 int g_inject_activation_context_locvar_offset = 0;
 
+#ifdef INJECT_ACTIVATION_SIGNAL
+// CodeNet 诊断（对应 signal.cpp 里同名变量的注释）：信号处理帧的现场，用来核对
+// 「FP + 偏移」还原出的 CONTEXT 到底是不是同一次激活、值是否合理。
+extern volatile void*  g_actctx_fp;
+extern volatile void*  g_actctx_ptr;
+extern volatile int    g_actctx_offset;
+extern volatile size_t g_actctx_pc;
+extern volatile size_t g_actctx_tid;
+extern int             g_actctx_trace;
+#endif
+
 BOOL PAL_VirtualUnwind(CONTEXT *context, KNONVOLATILE_CONTEXT_POINTERS *contextPointers)
 {
     int st;
@@ -675,7 +687,35 @@ BOOL PAL_VirtualUnwind(CONTEXT *context, KNONVOLATILE_CONTEXT_POINTERS *contextP
     // cannot cross on some systems.
     if ((void*)curPc == g_InvokeActivationHandlerReturnAddress)
     {
-        CONTEXT* activationContext = (CONTEXT*)(CONTEXTGetFP(context) + g_inject_activation_context_locvar_offset);
+        char* computed = (char*)CONTEXTGetFP(context) + g_inject_activation_context_locvar_offset;
+        CONTEXT* activationContext = (CONTEXT*)computed;
+
+#ifdef INJECT_ACTIVATION_SIGNAL
+        if (g_actctx_trace == 1)
+        {
+            // 只有一条激活在飞时，last_* 才对应这次；对不上就说明全局被别的线程覆盖了，
+            // 这也是一种需要知道的干扰。
+            fprintf(stderr,
+                    "[actctx] unwind fp=%p off=%d -> ctx=%p pc=%p | last tid=%zu fp=%p ctx=%p pc=%p (fp_match=%d ctx_match=%d)\n",
+                    (void*)CONTEXTGetFP(context), (int)g_inject_activation_context_locvar_offset,
+                    (void*)computed, (void*)CONTEXTGetPC(activationContext),
+                    (size_t)g_actctx_tid, (void*)g_actctx_fp, (void*)g_actctx_ptr, (void*)g_actctx_pc,
+                    (void*)CONTEXTGetFP(context) == (void*)g_actctx_fp,
+                    (void*)computed == (void*)g_actctx_ptr);
+            fflush(stderr);
+        }
+        // PC 为 0 的 CONTEXT 一定是垃圾：与其 memcpy 之后拿它去遍历一个不存在的栈、
+        // 最后崩在 GC 标记里，不如让这次展开失败（调用方会按「栈到头」处理）。
+        if (CONTEXTGetPC(activationContext) == 0)
+        {
+            if (g_actctx_trace == 1)
+            {
+                fprintf(stderr, "[actctx] SUSPECT: reconstructed context has PC=0, refuse to use it\n");
+                fflush(stderr);
+            }
+            return FALSE;
+        }
+#endif
         memcpy_s(context, sizeof(CONTEXT), activationContext, sizeof(CONTEXT));
 
         return TRUE;
