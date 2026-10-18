@@ -31,7 +31,7 @@ jobs:
         # SulfurLauncher 的 x64 通道同样依赖它。
         arch: [arm64, x64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 1
 
