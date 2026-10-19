@@ -179,9 +179,12 @@ jobs:
 
       # 稳定性探测：单次冒烟只能证明「能跑一次」，而 macOS 上这套运行时的 GC 崩溃是概率性的
       # （历史观测 10%~25%）。连跑 25 次构建统计被信号打死的次数，并把每次 stderr 存下来
-      # （含 CODENET_TRACE_ACTCTX 的诊断行）。先不阻断发布，只作回归观测。
+      # （含 CODENET_TRACE_ACTCTX / CODENET_TRACE_GC 的诊断行）。先不阻断发布，只作回归观测。
+      # if: always() —— 冒烟那步崩了（x64/Rosetta 上很常见）也要把 25 轮统计跑出来，
+      # 否则复现能力最强的这个组合反而拿不到数据。
       - name: Stability probe
         id: probe
+        if: always()
         continue-on-error: true
         shell: bash
         run: |
