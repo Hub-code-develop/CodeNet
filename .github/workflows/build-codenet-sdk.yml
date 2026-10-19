@@ -194,7 +194,7 @@ jobs:
           DOTNET_ROOT="$ROOT/dotnet11x64"
           export DOTNET_ROOT
           export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 MSBUILDDISABLENODEREUSE=1
-          export CODENET_TRACE_ACTCTX=1
+          export CODENET_TRACE_ACTCTX=1 CODENET_TRACE_GC=1
 
           CROSS=0
           if [ "$(uname -m)" != "${{ matrix.arch }}" ] && arch -x86_64 true >/dev/null 2>&1; then
@@ -208,15 +208,18 @@ jobs:
           rm -rf "$WORK"; mkdir -p "$WORK"; cd "$WORK"
           for _ in 1 2 3 4 5; do
             rm -rf app
-            run_dn "$DOTNET_ROOT/dotnet" new console -o app >/dev/null 2>&1 && break
+            run_dn "$DOTNET_ROOT/dotnet" new console -o app >/dev/null 2>&1 || true
+            ls app/*.csproj >/dev/null 2>&1 && break
           done
-          cd app
+          cd app || { echo "::error::连 dotnet new 都建不出工程，放弃探测"; exit 0; }
 
           crashes=0; ok=0; other=0
           for i in $(seq 1 25); do
             rm -rf obj bin
-            run_dn "$DOTNET_ROOT/dotnet" build -c Release > "$LOGS/run-$i.log" 2>&1
-            rc=$?
+            # GitHub 的 shell 默认带 -e：这里必须自己兜住 rc，否则第一次崩溃就把
+            # 整个探测脚本带走（历史上就是这么一直拿不到 25 轮数据的）。
+            rc=0
+            run_dn "$DOTNET_ROOT/dotnet" build -c Release > "$LOGS/run-$i.log" 2>&1 || rc=$?
             if [ "$rc" -ge 128 ]; then
               crashes=$((crashes + 1)); echo "run $i: CRASH rc=$rc"
             elif [ "$rc" -ne 0 ]; then
@@ -230,8 +233,10 @@ jobs:
           echo "crashes=$crashes" >> "$GITHUB_OUTPUT"
 
           if ls "$LOGS"/run-*.log >/dev/null 2>&1; then
-            echo "---- [actctx] 诊断行（前 40 条）----"
-            grep -h "\[actctx\]" "$LOGS"/run-*.log | head -40 || echo "（没有 actctx 诊断行）"
+            echo "---- [gcdiag] 诊断行（前 40 条）----"
+            grep -h "\[gcdiag\]" "$LOGS"/run-*.log | head -40 || echo "（没有 gcdiag 诊断行）"
+            echo "---- [actctx] 诊断行（前 20 条）----"
+            grep -h "\[actctx\]" "$LOGS"/run-*.log | head -20 || echo "（没有 actctx 诊断行）"
           fi
 
       - name: Upload probe logs

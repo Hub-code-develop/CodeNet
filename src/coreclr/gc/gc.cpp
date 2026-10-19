@@ -18,6 +18,8 @@
 
 #include "common.h"
 #include "gcenv.h"
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "gc.h"
 #include "gcscan.h"
@@ -28387,6 +28389,40 @@ gc_heap::ha_mark_object_simple (uint8_t** po THREAD_NUMBER_DCL)
 #endif //HEAP_ANALYZE
 
 //this method assumes that *po is in the [low. high[ range
+#ifdef CODENET_GC_DIAG
+// CodeNet 诊断：GC 偶尔会把「落在堆范围内、但不是对象」的内存当成对象去标记
+// （读它的 MethodTable 字，还会先往里面写标记位），最后崩在
+// mark_object_simple1 / GetLoaderAllocatorObjectForGC。
+// 这里在候选对象刚通过范围检查时验证一次 MT 字，把现场打出来（含来源槽地址 po，
+// 用来区分「栈槽 / 句柄表 / 对象字段」）。只在 CODENET_TRACE_GC=1 时输出。
+static int codenet_gc_diag = -1;
+static int codenet_gc_diag_count = 0;
+static void codenet_diag_check_object (uint8_t* o, uint8_t** slot)
+{
+    if (codenet_gc_diag < 0)
+    {
+        const char* v = getenv ("CODENET_TRACE_GC");
+        codenet_gc_diag = ((v != nullptr) && (v[0] == '1')) ? 1 : 0;
+    }
+    if (codenet_gc_diag != 1)
+        return;
+
+    uintptr_t mtWord = *(uintptr_t*)o;
+    uintptr_t mt = mtWord & ~(uintptr_t)7;
+    if (mt < 0x10000)
+    {
+        if (codenet_gc_diag_count < 20)
+        {
+            codenet_gc_diag_count++;
+            fprintf (stderr, "[gcdiag] bad-obj o=%p mtword=%p slot=%p lowest=%p highest=%p\n",
+                     (void*)o, (void*)mtWord, (void*)slot,
+                     (void*)g_gc_lowest_address, (void*)g_gc_highest_address);
+            fflush (stderr);
+        }
+    }
+}
+#endif // CODENET_GC_DIAG
+
 void
 gc_heap::mark_object_simple (uint8_t** po THREAD_NUMBER_DCL)
 {
@@ -28409,6 +28445,9 @@ gc_heap::mark_object_simple (uint8_t** po THREAD_NUMBER_DCL)
         o = mark_queue.queue_mark (o);
         if (o != nullptr)
         {
+#ifdef CODENET_GC_DIAG
+            codenet_diag_check_object (o, po);
+#endif // CODENET_GC_DIAG
             m_boundary (o);
             size_t s = size (o);
             add_to_promoted_bytes (o, s, thread);

@@ -122,6 +122,11 @@ if(FEATURE_STANDALONE_GC)
   add_definitions(-DBUILD_AS_STANDALONE)
   add_definitions(-DFEATURE_CONSERVATIVE_GC)
 
+  # CodeNet 诊断（临时）：在 mark 入口验证候选对象的 MethodTable 字，
+  # 运行时由 CODENET_TRACE_GC=1 打开，平时只有一次整数比较的开销。
+  # 定位完 GC 标记崩溃后请连同 gc.cpp 里的 codenet_diag_check_object 一起删掉。
+  add_definitions(-DCODENET_GC_DIAG)
+
   add_definitions(-DFX_VER_INTERNALNAME_STR=clrgc.dll)
   add_definitions(-DVERIFY_HEAP)
   if(CLR_CMAKE_HOST_APPLE)
